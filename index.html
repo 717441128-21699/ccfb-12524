@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AVAS 低速提示音设计与合规仿真台</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #171e2e; --panel2: #1d2639; --line: #28324a;
+    --txt: #e6ebf4; --muted: #8893a5; --accent: #5eb0ff; --green: #46c46e;
+    --red: #e5484d; --amber: #f5a524; --purple: #7c5cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--txt);
+    font: 13px/1.5 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  header {
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    background: linear-gradient(180deg, #141b2b, #0f1420);
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .layout { display: grid; grid-template-columns: 1fr 380px; gap: 14px; padding: 14px; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px; margin-bottom: 14px;
+  }
+  .panel h2 {
+    font-size: 13px; margin: 0 0 10px; color: #b9c4d6; font-weight: 650;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel h2 .hint { color: var(--muted); font-weight: 400; font-size: 11px; }
+  canvas { width: 100%; display: block; border-radius: 6px; background: #101725; }
+  .curveGrid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .curveBox canvas { height: 170px; cursor: crosshair; touch-action: none; }
+  .curveBox .cap { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .curveBox .cap b { font-weight: 600; }
+  .curveBox .cap .val { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button, select, input[type="number"], input[type="text"] {
+    background: var(--panel2); color: var(--txt); border: 1px solid var(--line);
+    border-radius: 7px; padding: 7px 12px; font-size: 12.5px; cursor: pointer;
+  }
+  button:hover { border-color: #3d4d6e; }
+  button.primary { background: #1d4ed8; border-color: #2563eb; }
+  button.primary:hover { background: #2563eb; }
+  button.active { background: var(--accent); color: #08131f; border-color: var(--accent); font-weight: 650; }
+  input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+  .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .row label { color: var(--muted); min-width: 84px; font-size: 12px; }
+  .row .rv { min-width: 64px; text-align: right; color: var(--txt); font-variant-numeric: tabular-nums; }
+  .readouts { display: flex; gap: 18px; flex-wrap: wrap; margin: 8px 0; }
+  .readouts .item { background: var(--panel2); padding: 8px 12px; border-radius: 8px; }
+  .readouts .item .k { color: var(--muted); font-size: 11px; }
+  .readouts .item .v { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 650; }
+  .badge.ok { background: rgba(70,196,110,.16); color: var(--green); border: 1px solid rgba(70,196,110,.4); }
+  .badge.no { background: rgba(229,72,77,.16); color: var(--red); border: 1px solid rgba(229,72,77,.4); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 5px 7px; text-align: right; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 550; position: sticky; top: 0; background: var(--panel); }
+  tr.pass td { color: var(--green); }
+  tr.fail td { color: #ff8f93; }
+  .threshInput { width: 64px; padding: 3px 6px; font-size: 11.5px; text-align: right; }
+  .bandScroll { max-height: 340px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .scanHead { padding: 9px 12px; border-radius: 8px; margin-bottom: 10px; font-weight: 650; }
+  .scanHead.good { background: rgba(70,196,110,.13); color: var(--green); border: 1px solid rgba(70,196,110,.35); }
+  .scanHead.bad { background: rgba(229,72,77,.13); color: #ff8f93; border: 1px solid rgba(229,72,77,.35); }
+  .failTable td, .failTable th { font-size: 11.5px; }
+  .muted { color: var(--muted); }
+  .progress { height: 5px; background: var(--panel2); border-radius: 4px; overflow: hidden; margin-top: 8px; display: none; }
+  .progress > div { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+  .meterBox { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .meterBox .m { background: var(--panel2); padding: 8px 14px; border-radius: 8px; text-align: center; }
+  .meterBox .m .k { color: var(--muted); font-size: 11px; }
+  .meterBox .m .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #driveCanvas { height: 190px; }
+  .driveStats { display: flex; gap: 16px; margin: 8px 0; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+  .driveStats b { color: var(--accent); }
+  .presetRow button { font-size: 11.5px; padding: 5px 9px; }
+  .fileBtns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .note { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
+  .smallInput { width: 70px; padding: 4px 7px; font-size: 12px; }
+  input[type="file"] { display: none; }
+  .scrubRow { display: flex; align-items: center; gap: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AVAS 低速提示音设计与合规仿真台</h1>
+  <span class="sub">浏览器实时合成 · 1/3 倍频程合规检查 · 多普勒驶过模拟 · 数据本地保存</span>
+  <div style="flex:1"></div>
+  <div class="fileBtns">
+    <button id="exportJson">导出工程 JSON</button>
+    <button id="exportCsv">导出曲线 CSV</button>
+    <button onclick="document.getElementById('importJson').click()">导入工程</button>
+    <input type="file" id="importJson" accept=".json">
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ========== 左列：曲线 + 驶过 ========== -->
+  <div>
+    <div class="panel">
+      <h2>设计曲线 <span class="hint">点击空白添加控制点 · 拖动修改 · 双击删除（端点保留）· 改动后 0.5s 内自动重扫</span></h2>
+      <div class="controls" style="margin-bottom:10px">
+        <button id="modeFwd" class="active">前进档（0–30 km/h）</button>
+        <button id="modeRev">倒车档</button>
+        <span class="muted">|</span>
+        <label class="muted">插值</label>
+        <select id="interpSel">
+          <option value="smooth">单调三次（连续无过冲）</option>
+          <option value="linear">线性</option>
+        </select>
+        <label class="muted">扫描步长</label>
+        <select id="scanStep" class="smallInput">
+          <option value="1">1 km/h</option>
+          <option value="2">2 km/h</option>
+          <option value="5">5 km/h</option>
+        </select>
+        <button id="scanNow">立即扫描</button>
+      </div>
+
+      <div class="curveGrid">
+        <div class="curveBox">
+          <div class="cap"><b style="color:#5eb0ff">音高曲线 f₀ (Hz)</b><span class="val" id="pitchVal"></span></div>
+          <canvas id="curvePitch"></canvas>
+        </div>
+        <div class="curveBox">
+          <div class="cap"><b style="color:#46c46e">响度曲线 目标 SPL (dB，参考距离处)</b><span class="val" id="levelVal"></span></div>
+          <canvas id="curveLevel"></canvas>
+        </div>
+        <div class="curveBox">
+          <div class="cap"><b style="color:#f5a524">音色曲线 亮度 (0–1，控制谐波能量分布)</b><span class="val" id="timbreVal"></span></div>
+          <canvas id="curveTimbre"></canvas>
+        </div>
+      </div>
+
+      <div class="progress" id="scanProgress"><div id="scanBar"></div></div>
+    </div>
+
+    <div class="panel">
+      <h2>驶过模拟（给领导演示）<span class="hint">车辆从侧前方 20 m 驶来、经过、驶离；含球面距离衰减与一阶多普勒</span></h2>
+      <div class="row">
+        <label>模拟车速</label><input type="range" id="driveSpeed" min="5" max="30" step="1" value="20">
+        <span class="rv" id="driveSpeedVal">20 km/h</span>
+      </div>
+      <div class="row">
+        <label>侧向距离</label><input type="range" id="driveLateral" min="1" max="15" step="0.5" value="7.5">
+        <span class="rv" id="driveLateralVal">7.5 m</span>
+      </div>
+      <div class="row">
+        <label>起点距离</label><input type="range" id="driveStart" min="10" max="40" step="1" value="20">
+        <span class="rv" id="driveStartVal">20 m</span>
+        <label style="min-width:auto">全程</label><span class="rv" id="driveDur"></span>
+      </div>
+      <div class="controls">
+        <button id="drivePlay" class="primary">▶ 播放驶过</button>
+        <button id="driveStop">■ 回到起点</button>
+      </div>
+      <div class="scrubRow" style="margin-top:8px">
+        <input type="range" id="driveScrub" min="0" max="100" value="0" disabled style="flex:1">
+      </div>
+      <div class="driveStats">
+        <span>时间 <b id="driveTime">0.00</b> s</span>
+        <span>距离 R <b id="driveDist">—</b> m</span>
+        <span>多普勒比 f′/f <b id="driveRatio">—</b></span>
+        <span>实时 SPL <b id="driveSpl">—</b> dB</span>
+      </div>
+      <canvas id="driveCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- ========== 右列：试听 + 合成 + 合规 ========== -->
+  <div>
+    <div class="panel">
+      <h2>实时试听</h2>
+      <div class="row">
+        <label>当前车速</label><input type="range" id="speedSlider" min="0" max="30" step="0.1" value="0">
+        <span class="rv" id="speedVal">0.0</span>
+      </div>
+      <div class="controls" style="margin-bottom:10px">
+        <button id="playBtn" class="primary">▶ 试听</button>
+        <span class="badge ok" id="liveBadge" style="display:none"></span>
+      </div>
+      <div class="readouts">
+        <div class="item"><div class="k">基频 f₀</div><div class="v" id="roPitch">—</div></div>
+        <div class="item"><div class="k">目标 SPL</div><div class="v" id="roLevel">—</div></div>
+      </div>
+      <div class="meterBox">
+        <div class="m"><div class="k">实测总级 线性 dB</div><div class="v" id="meterLin">—</div></div>
+        <div class="m"><div class="k">实测总级 A 计权 dB(A)</div><div class="v" id="meterA">—</div></div>
+      </div>
+      <div class="note">实测级来自实时分析器对合成输出的 FFT 分析；起步按下方斜坡时间渐入，停止快速淡出，避免咔哒声。</div>
+    </div>
+
+    <div class="panel">
+      <h2>合成器参数</h2>
+      <div class="row">
+        <label>谐波模板</label>
+        <select id="templateSel">
+          <option value="smooth">柔和（指数衰减）</option>
+          <option value="full">饱满（1/h 系列）</option>
+          <option value="hard">引擎感（奇谐波）</option>
+          <option value="pure">纯净（近正弦）</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>谐波数量</label>
+        <select id="harmCount" class="smallInput">
+          <option>4</option><option>6</option><option selected>8</option><option>12</option><option>16</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>颤音深度</label><input type="range" id="vibDepth" min="0" max="0.02" step="0.001" value="0.003">
+        <span class="rv" id="vibDepthVal">0.003</span>
+      </div>
+      <div class="row">
+        <label>颤音速率</label><input type="range" id="vibRate" min="0" max="10" step="0.1" value="4.5">
+        <span class="rv" id="vibRateVal">4.5 Hz</span>
+      </div>
+      <div class="row">
+        <label>起步渐入</label><input type="range" id="startRamp" min="20" max="800" step="10" value="150">
+        <span class="rv" id="startRampVal">150 ms</span>
+      </div>
+      <div class="row">
+        <label>声学校准</label><input type="range" id="calib" min="80" max="120" step="1" value="100">
+        <span class="rv" id="calibVal">100 dB</span>
+      </div>
+      <div class="row">
+        <label>参考距离</label><input type="range" id="refDist" min="0.5" max="10" step="0.5" value="1">
+        <span class="rv" id="refDistVal">1 m</span>
+      </div>
+      <div class="note">
+        声学校准 = 数字满刻度(0 dBFS)对应的 dB SPL，仅影响试听音量与表显；合规判定基于「目标 SPL 归一化」，与该值无关。
+        正式使用时请在消声室用单点实测值校准。参考距离是响度曲线上 SPL 数值对应的测量距离，驶过衰减按 20·log₁₀(R/R₀) 计算。
+      </div>
+      <h2 style="margin-top:14px">快速预设（写入当前档位曲线）</h2>
+      <div class="presetRow" id="presetBtns">
+        <button data-preset="ev-warm">电动车暖音</button>
+        <button data-preset="engine-like">引擎模拟</button>
+        <button data-preset="chime">高频提示铃</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>合规检查 <span class="hint">至少 2 个法规频段 ≥ 下限，且总级 ≤ 上限</span></h2>
+      <div id="scanSummary"></div>
+      <div style="margin:10px 0 6px"><b style="font-size:12px;color:#b9c4d6">整体 SPL 上限曲线 (dB)</b></div>
+      <canvas id="limitCanvas" style="height:120px"></canvas>
+    </div>
+
+    <div class="panel">
+      <h2>1/3 倍频程频段表 <span class="hint">下限可直接编辑（留空表示该频段无要求）</span></h2>
+      <div class="controls" style="margin-bottom:8px">
+        <button id="resetThresh" style="padding:4px 9px;font-size:11.5px">恢复参考默认值</button>
+      </div>
+      <div class="bandScroll">
+        <table>
+          <thead><tr><th>中心频率 Hz</th><th>下限 dB</th><th>当前车速 SPL</th><th>判定</th></tr></thead>
+          <tbody id="bandRows"></tbody>
+        </table>
+      </div>
+      <div class="note">
+        默认下限参考 UN ECE R138 / GB 7258 体系整理，仅供工程预研；正式认证请以现行法规原文为准。
+        频段分析使用 8192 点 Hann 窗 FFT 按 1/3 倍频程边界聚合能量，扫描为离线确定性渲染（每点 0.5 s、48 kHz）。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="dsp.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
